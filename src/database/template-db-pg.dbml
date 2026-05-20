@@ -1,0 +1,24 @@
+Table Attachments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  
+  filename varchar(255) [null]
+  original_name varchar(255) [null]
+  file_path varchar(500) [null]
+
+  file_size bigint [null]
+  mime_type varchar(100) [null]
+  file_hash varchar(64) [null]
+  url varchar(255) [null]
+
+  uploaded_by uuid [null]
+  uploaded_at timestamp [null]
+
+  deleted_at timestamp [null]
+
+  Indexes {
+    (file_hash)
+    (uploaded_by)
+    (uploaded_at)
+    (uploaded_by, uploaded_at)
+  }
+}

@@ -1,0 +1,59 @@
+# 
+fastapi[standard]
+granian[reload]
+starlette
+pyyaml
+scalar-fastapi
+
+# Langchain
+langchain
+langchain-ollama
+langchain-community
+redis 
+langchain-redis 
+langchain-neo4j 
+
+# Loader
+unstructured
+langchain-unstructured
+unstructured[all-docs]
+
+# python-docx
+faiss-cpu
+numpy
+chromadb
+
+# Persistence 
+sqlacodegen
+sqlmodel
+asyncpg
+psycopg2-binary
+psycopg2
+neo4j
+
+# Code gen
+sqlacodegen[sqlmodel]
+sqlacodegen
+
+# Tools 
+beautifulsoup4
+nltk
+
+# Computer vision
+ultralytics 
+opencv-python
+pillow
+roboflow
+mediapipe
+
+# OCR 
+pytesseract
+easyocr
+
+# Frontend
+streamlit
+streamlit-webrtc
+av
+tornado
+
+# sudo apt-get install libmagic-dev poppler-utils tesseract-ocr libreoffice pandoc
