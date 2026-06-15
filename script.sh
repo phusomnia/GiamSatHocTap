@@ -1,19 +1,22 @@
 #!/usr/bin/env bash
 
-#
-# conda search python
-# conda remove -n myenv --all
-# conda env export > environment.yml
-# conda env create -f environment.yml
-#
+SCRIPT_DIR="$(pwd)"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+for k4l in "$SCRIPT_DIR"/scripts/kernel/*.sh; do
+  source "$k4l"
+done
+for t1i in "$SCRIPT_DIR"/scripts/tui/*.sh; do
+  source "$t1i"
+done
+for p4n in "$SCRIPT_DIR"/scripts/plugins/*.sh; do
+  source "$p4n"
+done
 
-source "$SCRIPT_DIR/scripts/core.sh"
-source "$SCRIPT_DIR/scripts/env.sh"
-source "$SCRIPT_DIR/scripts/packages.sh"
-source "$SCRIPT_DIR/scripts/server.sh"
-source "$SCRIPT_DIR/scripts/convert.sh"
-source "$SCRIPT_DIR/scripts/menu.sh"
+# ==========================================
+# MAIN
+# ==========================================
+main() {
+  tui_run
+}
 
-menu
+main

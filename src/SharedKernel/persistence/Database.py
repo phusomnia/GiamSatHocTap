@@ -1,5 +1,5 @@
 from src.SharedKernel.base.Container import Configuration
-from src.config.Config import Config
+from src.Infrastructure.Config import Config
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlmodel.ext.asyncio.session import AsyncSession
 import urllib.parse

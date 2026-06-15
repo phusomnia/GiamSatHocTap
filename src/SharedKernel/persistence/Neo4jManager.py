@@ -2,7 +2,7 @@ from typing import Optional, Dict, List, Any, Union
 from neo4j import GraphDatabase, Driver, Session, Result
 from src.SharedKernel.base.Logger import get_logger
 from src.SharedKernel.base.Container import Singleton
-from src.config.Config import Config
+from src.infrastructure.Config import Config
 
 logger = get_logger(__name__)
 config = Config()

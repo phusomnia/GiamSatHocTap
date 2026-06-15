@@ -219,7 +219,7 @@ __marimo__/
 
 # 
 src/static/*
-./test
+./*test
 .agents
 node_modules
 bun.lock

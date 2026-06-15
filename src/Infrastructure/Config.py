@@ -4,7 +4,7 @@ class Config:
     def __init__(self, data=None):
         self._config = data or {}
 
-    def load_env_yaml(self, path: str = "src/config/app-config.yaml"):
+    def load_env_yaml(self, path: str = "src/Infrastructure/app-config.yaml"):
         with open(path, "r") as f:
             self._config = yaml.safe_load(f) or {}
         return self

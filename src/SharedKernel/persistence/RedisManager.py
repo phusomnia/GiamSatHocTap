@@ -8,7 +8,7 @@ from langchain_community.storage.redis import RedisStore
 from langchain_redis import RedisConfig, RedisVectorStore
 from src.SharedKernel.base.Logger import get_logger, ILogger
 from src.SharedKernel.base.Container import Singleton
-from src.config.Config import Config
+from src.Infrastructure.Config import Config
 from src.Features.Auton_Module.config.LLMConfig import EmbeddingProviderConfig
 import os
 

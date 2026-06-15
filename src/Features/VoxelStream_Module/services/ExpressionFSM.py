@@ -1,4 +1,4 @@
-from src.VortexRAG.FaceState import FaceState
+from .FaceState import FaceState
 
 """
 Optimaztion 1: hysteresis + dwell frames

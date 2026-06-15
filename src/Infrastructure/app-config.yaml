@@ -16,9 +16,7 @@ databases:
 
 services:
   provider: redis
-
   redis: 
-  
 
 llm:
   provider: ollama 

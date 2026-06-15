@@ -4,7 +4,7 @@ from langchain_community.graphs import Neo4jGraph
 from langchain_core.language_models import BaseLanguageModel
 from src.SharedKernel.base.Logger import get_logger
 from src.SharedKernel.base.Container import Singleton
-from src.config.Config import Config
+from src.infrastructure.Config import Config
 from src.Features.Auton_Module.persistence.Neo4jManager import Neo4jManager
 
 logger = get_logger(__name__)

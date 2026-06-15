@@ -1,10 +1,10 @@
 import cv2
 from src.SharedKernel.base.Container import Component
-from .services.Capture import OCVCapture as Capture
-from .services.Detector import Detector
-from .services.Extractor import Extractor
-from .services.Renderer import Renderer
-from .services.ExpressionFSM import ExpressionFSM
+from ..services.OCVCapture import OCVCapture as Capture
+from ..services.Detector import Detector
+from ..services.Extractor import Extractor
+from ..services.Renderer import Renderer
+from ..services.ExpressionFSM import ExpressionFSM
 
 @Component
 class VoxelStreamProc:

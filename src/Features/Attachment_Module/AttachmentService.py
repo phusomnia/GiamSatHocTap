@@ -9,7 +9,7 @@ from src.SharedKernel.base.Logger import Logger
 import uuid
 import os
 from datetime import datetime
-from src.config.Config import Config
+from src.infrastructure.Config import Config
 import mimetypes
 
 config = Config()

@@ -2,13 +2,13 @@ from uuid import uuid4
 from fastapi import FastAPI, APIRouter
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from src.config.Config import Config
 from scalar_fastapi import get_scalar_api_reference
 from typing import Optional
 import granian
 from src.SharedKernel.base.Decorators import register_controllers
 from src.SharedKernel.base.Container import Container
 from src.SharedKernel.base import Logger
+from src.Infrastructure.Config import Config
 
 config = Config()
 config.load_env_yaml()

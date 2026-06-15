@@ -1,0 +1,18 @@
+## System
+system_info
+find_port
+
+## Git
+git_status
+git_add
+git_commit
+git_push
+git_rename_main
+
+## Python
+python_info
+python_init_venv
+python_activate
+python_run_server
+
+exit

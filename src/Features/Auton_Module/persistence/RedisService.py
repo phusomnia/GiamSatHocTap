@@ -4,7 +4,7 @@ from langchain_core.documents import Document
 from langchain.embeddings.base import Embeddings
 from redisvl.index import SearchIndex
 from src.Features.Auton_Module.config.LLMConfig import EmbeddingFactory
-from src.config.Config import Config
+from src.infrastructure.Config import Config
 from src.SharedKernel.base.Logger import get_logger
 from src.SharedKernel.base.Container import Service
 from src.SharedKernel.persistence.RedisManager import RedisManager

@@ -5,7 +5,7 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain.embeddings import Embeddings
 from src.SharedKernel import base
 from src.SharedKernel.base.Container import Configuration
-from src.config.Config import Config
+from src.Infrastructure.Config import Config
 from typing import TypeVar, Generic, Dict, Type
 from enum import Enum
 

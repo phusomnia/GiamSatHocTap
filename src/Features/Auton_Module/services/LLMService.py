@@ -19,7 +19,7 @@ from redis import Redis
 from sqlalchemy.util import generic_repr
 from src.Features.Auton_Module.services.Retriever import Retriever
 from src.SharedKernel.base.Container import Service
-from src.config.Config import Config
+from src.infrastructure.Config import Config
 
 from .LoaderService import LoaderService
 from .ProcessService import ProcessService

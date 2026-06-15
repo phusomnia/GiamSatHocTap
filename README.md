@@ -129,13 +129,13 @@ Fastapi-Template-Starter/
 │   │       └── Probability.py
 │   └── tests/
 │       └── test_math.py
-├── scripts/                      # Shell scripts
-│   ├── convert.sh
-│   ├── core.sh
-│   ├── env.sh
-│   ├── menu.sh
-│   ├── packages.sh
-│   └── server.sh
+├── scripts/                      # Shell scripts (see [scripts/README.md](scripts/README.md))
+│   ├── core.sh                   # Shared utilities (colors, logging, spinner)
+│   ├── menu.sh                   # FZF interactive menu
+│   ├── server.sh                 # Server lifecycle (Granian, Streamlit, kill)
+│   ├── packages.sh               # Python package management
+│   ├── env.sh                    # Environment setup (venv, uv, yq)
+│   └── convert.sh                # DBML/SQL conversion, cleanup utilities
 ├── specs/                        # Specifications
 ├── data_sample/                  # Sample data
 ├── requirements/
