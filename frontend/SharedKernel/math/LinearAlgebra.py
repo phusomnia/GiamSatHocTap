@@ -137,6 +137,7 @@ class Determinant:
         
         for j in range(n):
             sign = (-1) ** j
+
 vec1 = Vector([1, 2])
 vec2 = Vector([1, 2])
 # vec1.get_vector()
