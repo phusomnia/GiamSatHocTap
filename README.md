@@ -1,38 +1,81 @@
-# GiamSatHocTap
+# GSHT
 
-GiamSatHocTap là dự án Python OOP dùng webcam để theo dõi mức độ tập trung khi học tập hoặc làm việc. Phần chạy chính nằm trong thư mục [FocusMonitor](FocusMonitor), dùng OpenCV, PyQt5 và SQLite.
+Giám sát học tập là dự án Python dùng webcam để theo dõi mức độ tập trung khi học tập hoặc làm việc
 
 ## Cài đặt
 
-Từ thư mục gốc dự án:
-
-```bash
-pip install -r requirements.txt
+## Yêu cầu: 
+* Scoop: https://scoop.sh/
+```
+scoop install miniconda3
+scoop install versions/python312
 ```
 
 ## Chạy ứng dụng
 
-```bash
-python FocusMonitor/main.py
+* chạy lẹnh ./script.sh bằng git bash
+### Pipeline workflow: 
+```
+init venv -> activate venv -> install requirements -> run application
 ```
 
-## Tóm tắt cấu trúc
+Nếu dùng môi trường ảo thì theo pipeline trên hoặc tải trực tiếp vào môi trường python trong máy:  
+```
+pip -r install requirements
+```
 
-- [FocusMonitor/main.py](FocusMonitor/main.py): điểm khởi chạy ứng dụng.
-- [FocusMonitor/camera/camera_manager.py](FocusMonitor/camera/camera_manager.py): quản lý webcam.
-- [FocusMonitor/detectors/face_detector.py](FocusMonitor/detectors/face_detector.py): phát hiện khuôn mặt và FPS.
-- [FocusMonitor/detectors/eye_detector.py](FocusMonitor/detectors/eye_detector.py): tính EAR và nhận biết buồn ngủ.
-- [FocusMonitor/detectors/gaze_detector.py](FocusMonitor/detectors/gaze_detector.py): phân loại hướng nhìn.
-- [FocusMonitor/detectors/focus_detector.py](FocusMonitor/detectors/focus_detector.py): ghép trạng thái tập trung tổng thể.
-- [FocusMonitor/services/focus_service.py](FocusMonitor/services/focus_service.py): tính focus time, lost time và focus score.
-- [FocusMonitor/services/statistics_service.py](FocusMonitor/services/statistics_service.py): tạo dữ liệu thống kê cho lịch sử.
-- [FocusMonitor/database/sqlite_manager.py](FocusMonitor/database/sqlite_manager.py): lưu và đọc phiên học SQLite.
-- [FocusMonitor/ui/dashboard.py](FocusMonitor/ui/dashboard.py): giao diện chính PyQt5.
-- [FocusMonitor/ui/history_window.py](FocusMonitor/ui/history_window.py): cửa sổ lịch sử và biểu đồ.
-- [FocusMonitor/models/session.py](FocusMonitor/models/session.py): dataclass và enum cho trạng thái/phiên học.
-- [FocusMonitor/utils/constants.py](FocusMonitor/utils/constants.py): hằng số cấu hình và màu giao diện.
+## Cấu trúc thư mục
 
-## Ghi chú
+```
+.
+├── frontend/
+│   └── native/                        # Native desktop frontend (PyQt5)
+│       ├── ui/
+│       │   ├── dashboard.py           # Main dashboard (sidebar + monitor)
+│       │   ├── history_window.py      # History page with charts
+│       │   └── tracking_settings.py   # Settings dialog
+│       ├── utils/
+│       │   └── config.py              # Loads config.yaml
+│       ├── config.yaml                # App / camera / tracking / display config
+│       └── lain.py                    # Entry point
+├── scripts/                            # Shell scripts
+├── specs/                              # Architecture docs
+├── src/
+│   ├── Domain/                         # Domain entities
+│   ├── Features/
+│   │   └── VoxelStream_Module/         # Face tracking core
+│   │       ├── config/
+│   │       │   └── face_landmarker.task
+│   │       ├── controllers/
+│   │       │   └── VoxelStreamController.py  # FastAPI endpoints
+│   │       ├── dto/
+│   │       │   └── VoxelStreamDTO.py
+│   │       ├── handlers/
+│   │       │   └── VoxelStreamProc.py        # Pipeline orchestrator
+│   │       ├── models/
+│   │       │   └── StudySession.py           # Dataclass model
+│   │       ├── services/
+│   │       │   ├── Detector.py           # MediaPipe FaceLandmarker
+│   │       │   ├── ExpressionFSM.py      # Face state machine
+│   │       │   ├── Extractor.py          # EAR, MAR extraction
+│   │       │   ├── FaceState.py          # State enum
+│   │       │   ├── FocusAnalyzer.py      # Focus percentage logic
+│   │       │   ├── HeadPoseEstimator.py  # Pitch/yaw/roll from matrix
+│   │       │   ├── Metrics.py            # EAR/MAR dataclass
+│   │       │   ├── OCVCapture.py         # OpenCV camera capture
+│   │       │   ├── Renderer.py           # Draw landmarks, bbox, text
+│   │       │   └── interfaces/
+│   │       │       └── FrameSource.py
+│   │       └── VoxelStream_Module.md
+│   ├── SharedKernel/
+│   │   ├── base/                         # Decorators, Container, APIResponse
+│   │   └── persistence/
+│   │       ├── CrudORM.py                # Generic CRUD base
+│   │       ├── StudySessionRepo.py       # StudySession repository
+│   │       └── SessionManager.py         # Session lifecycle + FocusAnalyzer
+│   ├── Infrastructure/                   # Config loader, app config
+│   └── lain.py                           # Server entry point
+├── requirements.txt
+└── script.sh
+```
 
-- Ứng dụng không dùng TensorFlow hay mô hình AI nặng.
-- Dữ liệu phiên học được lưu vào SQLite trong thư mục [FocusMonitor/reports](FocusMonitor/reports).

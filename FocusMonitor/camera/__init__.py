@@ -1,1 +1,0 @@
-"""Camera management utilities."""

@@ -221,8 +221,7 @@ __marimo__/
 src/static/*
 ./*test
 .agents
-node_modules
-bun.lock
-package.json
-specs
-requirements
+# node_modules
+# bun.lock
+# package.json
+# requirements

@@ -8,6 +8,9 @@ class FaceMetrics:
         self.left_ear = left_ear
         self.right_ear = right_ear
         self.mar = mar
+        self.pitch = None
+        self.yaw = None
+        self.roll = None
 
     @property
     def ear(self):

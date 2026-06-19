@@ -1,0 +1,37 @@
+app:
+  title: GiamSatHocTap - Native Monitor
+  window_height: 850
+  window_width: 1500
+camera:
+  frame_interval_ms: 33
+  height: 720
+  index: 0
+  width: 1280
+colors:
+  accent: '#45c2ff'
+  border: '#1b3f67'
+  card: '#0f2743'
+  danger: '#ff6b6b'
+  muted: '#9ab2cc'
+  navy: '#081a2f'
+  navy_dark: '#040d1a'
+  navy_light: '#10345d'
+  success: '#2ecc71'
+  text: '#ecf4ff'
+  warning: '#f1c40f'
+display:
+  show_bbox: false
+  show_landmarks: true
+  show_overlay: false
+session:
+  alert_cooldown_seconds: 5.0
+  db_path: database/focus_monitor.db
+  face_lost_seconds: 3.0
+tracking:
+  absent_frames: 90
+  ear_threshold: 0.2
+  mar_threshold: 0.5
+  pitch_down: -20.0
+  required_frames: 4
+  yaw_left: -25.0
+  yaw_right: 25.0

@@ -9,8 +9,8 @@ scripts/
 │   └── core.sh          # Colors, Spring Boot-style logger (log_info/log_error/log_warn/log_success/log_debug), spinner, platform, terminal utils
 ├── tui/
 │   ├── ui.sh            # fzf menu UI wrapper
-│   ├── tui_manager.sh   # Two-level category navigator (parses menu.txt)
-│   └── menu.txt         # Menu data: ## headers = categories, items = commands
+│   ├── tui_manager.sh   # Flat menu runner (parses menu.txt, shows all items in one fzf list)
+│   └── menu.txt         # Flat list of commands (one per line)
 └── plugins/
     ├── system.sh        # system script
     ├── git.sh           # git script
@@ -21,6 +21,8 @@ scripts/
     ├── go.sh            # go script
     ├── dotnet.sh        # dotnet script
     ├── nim.sh           # nim script
+    ├── java.sh          # java script
+    ├── php.sh           # php script
     ├── voxel-engine.sh  # voxel engine script
     ├── voxel-server.sh  # voxel server script
     └── debian.sh        # debian script
@@ -33,31 +35,27 @@ scripts/
 ### Menu flow
 
 ```
-Categories → pick one → sub-commands → back/Esc → categories
-                                        → execute → exit
+Flat menu → pick a command → execute → exit
+                      → Esc → exit
 ```
 
-1. Reads `menu.txt` — lines starting with `##` are category headers, others are commands
-2. Shows categories in fzf (`exit` to quit)
-3. Pick a category → shows its sub-commands
-4. `back` / `Esc` returns to categories; pick a command → execute → exit
+1. Reads `menu.txt` — each line is a command name
+2. Shows all commands in a single fzf menu (`exit` to quit)
+3. Pick a command → execute → exit
 
 ### menu.txt format
 
 ```
-## Category Name
 command_name
 another_command
-
-## Next Category
-some_command
+exit
 ```
 
-Lines starting with `##` become category items in the top-level fzf menu. Non-blank lines under each header become the sub-commands for that category.
+Every non-blank line is a command shown in the menu. The special `exit` item quits.
 
 ### Adding a command
 
-1. Add the item name to `menu.txt` under the appropriate `##` category
+1. Add the function name to `menu.txt`
 2. Define the function in the corresponding plugin file under `scripts/plugins/`
 
 ## Cross-platform support (`os_type`)

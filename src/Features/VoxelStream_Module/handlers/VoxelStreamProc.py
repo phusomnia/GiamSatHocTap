@@ -5,16 +5,19 @@ from ..services.Detector import Detector
 from ..services.Extractor import Extractor
 from ..services.Renderer import Renderer
 from ..services.ExpressionFSM import ExpressionFSM
+from ..services.HeadPoseEstimator import HeadPoseEstimator
+from ....SharedKernel.persistence.SessionManager import SessionManager
 
 @Component
 class VoxelStreamProc:
     def __init__(self):
-        self.capture    = Capture()
-        self.extractor  = Extractor()
-        self.renderer   = Renderer()
-        self.fsm        = ExpressionFSM()
+        self.capture = Capture()
+        self.extractor = Extractor()
+        self.renderer = Renderer()
+        self.fsm = ExpressionFSM()
+        self.head_pose_estimator = HeadPoseEstimator()
 
-    def run_tracker(self):
+    def run_tracker(self, session_manager: SessionManager = None):
         with Detector() as detector:
             while self.capture.is_opened():
 
@@ -30,16 +33,31 @@ class VoxelStreamProc:
 
                 if result.face_landmarks:
 
-                    for landmarks in result.face_landmarks:
+                    for idx, landmarks in enumerate(result.face_landmarks):
 
                         metrics = (
                             self.extractor
                             .extract(landmarks)
                         )
 
-                        state = self.fsm.update(
-                            metrics
-                        )
+                        if (
+                            result.facial_transformation_matrixes
+                            and idx < len(
+                                result.facial_transformation_matrixes
+                            )
+                        ):
+                            tf_matrix = (
+                                result.facial_transformation_matrixes[idx]
+                            )
+                            pitch, yaw, roll = (
+                                self.head_pose_estimator
+                                .estimate(tf_matrix)
+                            )
+                            metrics.pitch = pitch
+                            metrics.yaw = yaw
+                            metrics.roll = roll
+
+                        state = self.fsm.update(metrics)
 
                         frame = self.renderer.render(
                             frame,
@@ -47,6 +65,15 @@ class VoxelStreamProc:
                             state,
                             metrics
                         )
+
+                        if session_manager:
+                            session_manager.update(state)
+
+                else:
+                    state = self.fsm.update(None)
+                    frame = self.renderer.render_no_face(frame, state)
+                    if session_manager:
+                        session_manager.update(state)
 
                 cv2.imshow(
                     "Focus Analysis",
