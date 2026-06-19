@@ -28,6 +28,7 @@ class CameraManager:
 
         backend = cv2.CAP_DSHOW if os.name == "nt" and hasattr(cv2, "CAP_DSHOW") else 0
         self._capture = cv2.VideoCapture(self.camera_index, backend)
+        self._capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         return self._capture.isOpened()

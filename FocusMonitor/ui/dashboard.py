@@ -55,6 +55,9 @@ from FocusMonitor.utils.constants import (
     WINDOW_WIDTH,
 )
 
+PROCESS_SCALE = 0.5
+DETECTION_INTERVAL = 2
+
 
 class Dashboard(QMainWindow):
     """Display the webcam feed, metrics and session controls."""
@@ -86,6 +89,9 @@ class Dashboard(QMainWindow):
         self._last_tick = time.monotonic()
         self._last_alert = 0.0
         self._is_running = False
+        self._frame_counter = 0
+        self._last_rendered_frame: np.ndarray | None = None
+        self._last_focus_state: FocusStateSnapshot | None = None
 
         self.setWindowTitle(APP_TITLE)
         self.setMinimumSize(WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -206,6 +212,9 @@ class Dashboard(QMainWindow):
 
         self._focus_service.start(datetime.now())
         self._last_tick = time.monotonic()
+        self._frame_counter = 0
+        self._last_rendered_frame = None
+        self._last_focus_state = None
         self._is_running = True
         self._timer.start()
 
@@ -218,6 +227,8 @@ class Dashboard(QMainWindow):
         self._timer.stop()
         self._camera_manager.release()
         self._is_running = False
+        self._last_rendered_frame = None
+        self._last_focus_state = None
 
         try:
             session = self._focus_service.stop(datetime.now())
@@ -247,20 +258,34 @@ class Dashboard(QMainWindow):
         current_monotonic = time.monotonic()
         current_datetime = datetime.now()
 
-        face_result = self._face_detector.detect(frame)
-        rendered = self._face_detector.annotate(frame, face_result)
+        self._frame_counter += 1
+        should_run_detectors = self._last_focus_state is None or self._frame_counter % DETECTION_INTERVAL == 0
 
-        eye_result = self._eye_detector.detect(frame)
-        rendered = self._eye_detector.annotate(rendered, eye_result)
+        if should_run_detectors:
+            processed_frame = self._prepare_frame(frame)
+            face_result = self._face_detector.detect(processed_frame)
+            rendered = self._face_detector.annotate(processed_frame, face_result)
 
-        gaze_result = self._gaze_detector.detect(frame)
-        rendered = self._gaze_detector.annotate(rendered, gaze_result)
+            eye_result = self._eye_detector.detect(processed_frame)
+            rendered = self._eye_detector.annotate(rendered, eye_result)
 
-        focus_state = self._focus_detector.evaluate(rendered, face_result, eye_result, gaze_result)
+            gaze_result = self._gaze_detector.detect(processed_frame)
+            rendered = self._gaze_detector.annotate(rendered, gaze_result)
+
+            focus_state = self._focus_detector.evaluate(rendered, face_result, eye_result, gaze_result)
+            self._last_focus_state = focus_state
+            self._last_rendered_frame = focus_state.frame
+        else:
+            focus_state = self._last_focus_state
+
+        if focus_state is None:
+            self._render_placeholder()
+            return
 
         self._focus_service.update(focus_state, current_datetime)
         self._refresh_metrics(focus_state)
-        self._render_frame(focus_state.frame)
+        if self._last_rendered_frame is not None:
+            self._render_frame(self._last_rendered_frame)
         self._handle_alerts(focus_state, current_monotonic)
 
     def _refresh_metrics(self, focus_state: FocusStateSnapshot) -> None:
@@ -295,6 +320,16 @@ class Dashboard(QMainWindow):
         )
         self.video_label.setPixmap(pixmap)
 
+    def _prepare_frame(self, frame: np.ndarray) -> np.ndarray:
+        """Shrink the frame before running computer-vision detectors."""
+
+        if PROCESS_SCALE >= 1.0:
+            return frame
+
+        new_width = max(1, int(frame.shape[1] * PROCESS_SCALE))
+        new_height = max(1, int(frame.shape[0] * PROCESS_SCALE))
+        return cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+
     def _render_placeholder(self) -> None:
         """Show a neutral placeholder when the camera is not producing frames."""
 
@@ -323,7 +358,27 @@ class Dashboard(QMainWindow):
 
         self._last_alert = current_monotonic
         QApplication.beep()
-        QMessageBox.warning(self, "Focus Alert", "Please focus on your work")
+        message_box = QMessageBox(self)
+        message_box.setWindowTitle("Focus Alert")
+        message_box.setText("Please focus on your work")
+        message_box.setIcon(QMessageBox.Warning)
+        message_box.setStandardButtons(QMessageBox.Ok)
+        message_box.setStyleSheet(
+            """
+            QMessageBox {
+                background-color: white;
+            }
+            QMessageBox QLabel {
+                color: black;
+            }
+            QMessageBox QPushButton {
+                color: black;
+                min-width: 72px;
+                padding: 6px 12px;
+            }
+            """
+        )
+        message_box.exec_()
 
     def _update_status_card(self, value: str) -> None:
         """Update the status card text with a new value."""
