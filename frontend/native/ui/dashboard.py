@@ -30,6 +30,7 @@ from src.SharedKernel.persistence.SessionManager import SessionManager
 from src.SharedKernel.persistence.StudySessionRepo import StudySessionRepo
 
 from src.Features.VoxelStream_Module.services.FocusAnalyzer import FocusLevel
+from src.Features.VoxelStream_Module.services.FaceAuth import FaceAuthenticator
 
 from frontend.native.ui.history_window import HistoryPage
 from frontend.native.ui.tracking_settings import TrackingSettingsDialog
@@ -101,6 +102,11 @@ class Dashboard(QMainWindow):
         self.setWindowTitle(APP_TITLE)
         self.setMinimumSize(WINDOW_WIDTH, WINDOW_HEIGHT)
         self._build_ui()
+
+        self.face_auth = FaceAuthenticator()
+        self.is_registered = False
+        self.auth_warning = False
+        self.auth_frame_count = 0
 
     # ── UI ──────────────────────────────────────────────
 
@@ -352,6 +358,38 @@ class Dashboard(QMainWindow):
         fps = 1.0 / max(now - self._last_tick, 0.001)
         self._last_tick = now
 
+        if not getattr(self, 'is_registered', False):
+            # In thông báo đang quét lên màn hình
+            cv2.putText(frame, "DANG QUET KHUON MAT GOC...", (20, 50), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+            cv2.putText(frame, "Vui long nhin thang vao camera", (20, 90), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            
+            # Khởi tạo bộ đếm nếu chưa có (để tránh lag)
+            if not hasattr(self, 'register_attempt_count'):
+                self.register_attempt_count = 0
+            self.register_attempt_count += 1
+
+            # Cứ mỗi 15 khung hình (~0.5 giây) mới gọi AI quét 1 lần để giao diện không bị giật lag
+            if self.register_attempt_count % 15 == 0:
+                print("Đang thử trích xuất khuôn mặt...")
+                success = self.face_auth.register_face(frame)
+                if success:
+                    self.is_registered = True
+                    print("✅ Tự động đăng ký khuôn mặt thành công!")
+            
+            # Vẽ hình ảnh ra UI và chặn lại, chưa cho FSM chạy
+            self._render_frame(frame)
+            return
+        self.auth_frame_count += 1
+        if self.auth_frame_count % 90 == 0: # ~3 giây check 1 lần
+            is_correct_user = self.face_auth.verify_face(frame)
+            self.auth_warning = not is_correct_user
+
+        if getattr(self, 'auth_warning', False):
+            cv2.putText(frame, "WARNING: UNAUTHORIZED USER!", (50, 50), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
         result = self.detector_ctx.detect(frame, self.capture.timestamp())
 
         state = FaceState.NORMAL
@@ -453,8 +491,7 @@ class Dashboard(QMainWindow):
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation,
         )
-        self.video_label.setPixmap(pix)
-
+        self.video_label.setPixmap(pix)    
     # ── Lifecycle ────────────────────────────────────────
 
     def closeEvent(self, event: Any) -> None:
