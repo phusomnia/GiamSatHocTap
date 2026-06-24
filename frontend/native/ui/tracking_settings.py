@@ -21,6 +21,7 @@ from PyQt5.QtWidgets import (
 from frontend.native.utils.config import (
     ABSENT_FRAMES,
     ACCENT,
+    BLINK_MAX_FRAMES,
     BORDER,
     CAMERA_HEIGHT,
     CAMERA_INDEX,
@@ -105,6 +106,13 @@ class TrackingSettingsDialog(QDialog):
         self._ear = _spin(EAR_THRESHOLD, 2, 0.01, 1.0, 0.01)
         form.addRow("EAR Threshold:", self._ear)
 
+        self._blink = QSpinBox(self)
+        self._blink.setRange(5, 60)
+        self._blink.setSingleStep(5)
+        self._blink.setValue(BLINK_MAX_FRAMES)
+        self._blink.setStyleSheet(self._cam_idx.styleSheet())
+        form.addRow("Blink Max Frames:", self._blink)
+
         self._mar = _spin(MAR_THRESHOLD, 2, 0.01, 1.0, 0.01)
         form.addRow("MAR Threshold:", self._mar)
 
@@ -183,6 +191,7 @@ class TrackingSettingsDialog(QDialog):
 
     def _on_save(self) -> None:
         self._fsm.EYE_CLOSE_THRESHOLD = self._ear.value()
+        self._fsm.BLINK_MAX_FRAMES = self._blink.value()
         self._fsm.MOUTH_OPEN_THRESHOLD = self._mar.value()
         self._fsm.LOOKING_LEFT_THRESHOLD = self._yaw_l.value()
         self._fsm.LOOKING_RIGHT_THRESHOLD = self._yaw_r.value()
@@ -223,6 +232,7 @@ class TrackingSettingsDialog(QDialog):
             data = yaml.safe_load(fh)
         data.setdefault("tracking", {})
         data["tracking"]["ear_threshold"] = self._ear.value()
+        data["tracking"]["blink_max_frames"] = self._blink.value()
         data["tracking"]["mar_threshold"] = self._mar.value()
         data["tracking"]["yaw_left"] = self._yaw_l.value()
         data["tracking"]["yaw_right"] = self._yaw_r.value()

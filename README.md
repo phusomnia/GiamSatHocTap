@@ -19,10 +19,18 @@ scoop install versions/python312
 init venv -> activate venv -> install requirements -> run application
 ```
 
-Nếu dùng môi trường ảo thì theo pipeline trên hoặc tải trực tiếp vào môi trường python trong máy:  
-```
-pip -r install requirements
-```
+* ### Virtual Env:
+    ```
+    chạy ./script.sh -> python install requirements
+    python frontend/native/lain.py
+    ```
+
+* ### Local:  
+    ```
+    pip -r install requirements
+    conda activate ./.venv
+    python frontend/native/lain.py
+    ```
 
 ## Cấu trúc thư mục
 

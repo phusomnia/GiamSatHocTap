@@ -8,8 +8,7 @@ from ..services.ExpressionFSM import ExpressionFSM
 from ..services.HeadPoseEstimator import HeadPoseEstimator
 from ....SharedKernel.persistence.SessionManager import SessionManager
 
-# [CODE MỚI] Import Service Xác thực khuôn mặt
-from ...services.FaceAuth import FaceAuthenticator
+from ..services.FaceAuth import FaceAuthenticator
 
 @Component
 class VoxelStreamProc:
@@ -19,17 +18,22 @@ class VoxelStreamProc:
         self.renderer = Renderer()
         self.fsm = ExpressionFSM()
         self.head_pose_estimator = HeadPoseEstimator()
-        
         self.face_auth = FaceAuthenticator()
+        self._stop_requested = False
+
+    def stop(self):
+        self._stop_requested = True
 
     def run_tracker(self, session_manager: SessionManager = None):
-        
+        self._stop_requested = False
         is_registered = False
         frame_count = 0
         auth_warning = False
 
         with Detector() as detector:
             while self.capture.is_opened():
+                if self._stop_requested:
+                    break
 
                 frame = self.capture.read()
 
@@ -55,7 +59,7 @@ class VoxelStreamProc:
                     elif key == ord("q") or key == ord("Q"):
                         break
                         
-                    continue # Bỏ qua toàn bộ phần tính toán bên dưới nếu chưa đăng ký xong
+                    continue
 
 
                 result = detector.detect(
@@ -64,42 +68,22 @@ class VoxelStreamProc:
                 )
 
                 if result.face_landmarks:
+                    # Chỉ track 1 khuôn mặt đầu tiên
+                    landmarks = result.face_landmarks[0]
+                    metrics = self.extractor.extract(landmarks)
 
-                    for idx, landmarks in enumerate(result.face_landmarks):
+                    if result.facial_transformation_matrixes:
+                        tf_matrix = result.facial_transformation_matrixes[0]
+                        pitch, yaw, roll = self.head_pose_estimator.estimate(tf_matrix)
+                        metrics.pitch = pitch
+                        metrics.yaw = yaw
+                        metrics.roll = roll
 
-                        metrics = (
-                            self.extractor
-                            .extract(landmarks)
-                        )
+                    state = self.fsm.update(metrics)
+                    frame = self.renderer.render(frame, landmarks, state, metrics)
 
-                        if (
-                            result.facial_transformation_matrixes
-                            and idx < len(
-                                result.facial_transformation_matrixes
-                            )
-                        ):
-                            tf_matrix = (
-                                result.facial_transformation_matrixes[idx]
-                            )
-                            pitch, yaw, roll = (
-                                self.head_pose_estimator
-                                .estimate(tf_matrix)
-                            )
-                            metrics.pitch = pitch
-                            metrics.yaw = yaw
-                            metrics.roll = roll
-
-                        state = self.fsm.update(metrics)
-
-                        frame = self.renderer.render(
-                            frame,
-                            landmarks,
-                            state,
-                            metrics
-                        )
-
-                        if session_manager:
-                            session_manager.update(state)
+                    if session_manager:
+                        session_manager.update(state)
 
                 else:
                     state = self.fsm.update(None)
@@ -110,7 +94,6 @@ class VoxelStreamProc:
 
                 #GIAI ĐOẠN KIỂM TRA ĐỊNH KỲ & CẢNH BÁO
                 frame_count += 1
-                # Kiểm tra lại khuôn mặt mỗi 90 frames (~3 giây)
                 if frame_count % 90 == 0:
                     is_verified = self.face_auth.verify_face(frame)
                     if not is_verified:
@@ -119,18 +102,15 @@ class VoxelStreamProc:
                     else:
                         auth_warning = False
 
-                # Vẽ chữ cảnh báo lên màn hình nếu đang cảnh báo
                 if auth_warning:
                     cv2.putText(frame, "WARNING: UNAUTHORIZED USER!", (50, 80), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
-
-                cv2.imshow(
-                    "Focus Analysis",
-                    frame
-                )
+                cv2.imshow("Focus Analysis", frame)
 
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
 
         self.capture.release()
+        if session_manager:
+            session_manager.stop()
