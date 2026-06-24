@@ -9,11 +9,13 @@ class ExpressionFSM:
     ABSENT_FRAMES = 90
 
     REQUIRED_FRAMES = 4
+    BLINK_MAX_FRAMES = 15
 
     def __init__(self):
         self.state = FaceState.NORMAL
         self.counter = 0
         self.absent_counter = 0
+        self._eyes_closed_counter = 0
 
     def update(self, metrics=None):
         if metrics is None:
@@ -23,6 +25,16 @@ class ExpressionFSM:
     def _process_face(self, metrics):
         target_state = self._determine_target_state(metrics)
         self.absent_counter = 0
+
+        if target_state == FaceState.EYES_CLOSED:
+            self._eyes_closed_counter += 1
+        else:
+            self._eyes_closed_counter = 0
+
+        if (target_state == FaceState.EYES_CLOSED
+                and self._eyes_closed_counter <= self.BLINK_MAX_FRAMES):
+            target_state = FaceState.NORMAL
+
         if target_state == self.state:
             self.counter = 0
             return self.state
@@ -72,3 +84,4 @@ class ExpressionFSM:
         self.state = FaceState.NORMAL
         self.counter = 0
         self.absent_counter = 0
+        self._eyes_closed_counter = 0

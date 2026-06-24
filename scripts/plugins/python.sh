@@ -43,7 +43,7 @@ python_init_venv() {
     return 0
   fi
 
-  conda create -y -p "$env_path" python
+  conda create -y -p "$env_path" python=3.12
   local rc=$?
 
   if [ $rc -eq 0 ]; then

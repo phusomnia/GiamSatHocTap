@@ -25,11 +25,38 @@ def Controller(cls: T) -> T:
 
 logger = get_logger(__name__)
 
+def _import_controller_module(module_path: str, feature_name: str, file_name: str) -> None:
+    """Import a single controller module given its dotted path."""
+    try:
+        importlib.import_module(module_path)
+        logger.info(f"Imported {Path(file_name).stem} from {feature_name}")
+    except Exception as e:
+        logger.error(f"❌ Failed to import {Path(file_name).stem} from {feature_name}/{file_name}: {e}")
+        logger.error(f"📁 Module path attempted: {module_path}")
+        import traceback
+        logger.error(f"🔍 Full traceback:\n{traceback.format_exc()}")
+
+def _scan_directory_for_controllers(base_dir: Path, base_module: str, feature_name: str) -> None:
+    """Recursively scan a directory for *controller.py files."""
+    try:
+        with os.scandir(str(base_dir)) as entries:
+            for entry in entries:
+                if entry.is_file() and entry.name.lower().endswith('controller.py'):
+                    module_name = Path(entry.name).stem
+                    module_path = f"{base_module}.{module_name}"
+                    _import_controller_module(module_path, feature_name, entry.name)
+                elif entry.is_dir() and not entry.name.startswith('__'):
+                    sub_module = f"{base_module}.{entry.name}"
+                    _scan_directory_for_controllers(
+                        Path(entry.path), sub_module, feature_name
+                    )
+    except OSError as e:
+        logger.error(f"❌ Error scanning directory {base_dir}: {e}")
+
 def auto_import_controllers() -> None:
     """
     Automatically import all controllers from the Features directory.
-    Scans for files matching pattern '*controller.py' in feature subdirectories.
-    Optimized for Windows performance using os.scandir().
+    Recursively scans for files matching pattern '*controller.py' in feature directories.
     """
     src_path = Path(__file__).parent.parent.parent # Go up to src directory
     features_path = src_path / "Features"
@@ -45,27 +72,11 @@ def auto_import_controllers() -> None:
             for feature_entry in feature_entries:
                 if not feature_entry.is_dir():
                     continue
-                
-                feature_dir = Path(feature_entry.path)
-                
-                with os.scandir(feature_entry.path) as controller_entries:
-                    for controller_entry in controller_entries:
-                        if not controller_entry.is_file():
-                            continue
-                        
-                        # Case-insensitive check for controller files
-                        if controller_entry.name.lower().endswith('controller.py'):
-                            controller_name = Path(controller_entry.name).stem
-                            module_path = f"src.Features.{feature_entry.name}.{controller_name}"
-                            
-                            try:
-                                importlib.import_module(module_path)
-                                logger.info(f"Imported {controller_name} from {feature_entry.name}")
-                            except Exception as e:
-                                logger.error(f"❌ Failed to import {controller_name} from {feature_entry.name}/{controller_entry.name}: {e}")
-                                logger.error(f"📁 Module path attempted: {module_path}")
-                                import traceback
-                                logger.error(f"🔍 Full traceback:\n{traceback.format_exc()}")
+                _scan_directory_for_controllers(
+                    Path(feature_entry.path),
+                    f"src.Features.{feature_entry.name}",
+                    feature_entry.name
+                )
     except OSError as e:
         logger.error(f"❌ Error scanning directories: {e}")
 

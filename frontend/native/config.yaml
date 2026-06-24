@@ -21,7 +21,7 @@ colors:
   warning: '#f1c40f'
 display:
   show_bbox: false
-  show_landmarks: true
+  show_landmarks: false
   show_overlay: false
 session:
   alert_cooldown_seconds: 5.0
@@ -29,6 +29,7 @@ session:
   face_lost_seconds: 3.0
 tracking:
   absent_frames: 90
+  blink_max_frames: 15
   ear_threshold: 0.2
   mar_threshold: 0.5
   pitch_down: -20.0

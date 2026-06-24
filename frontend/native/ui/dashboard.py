@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from typing import Any
 
@@ -30,12 +31,11 @@ from src.SharedKernel.persistence.SessionManager import SessionManager
 from src.SharedKernel.persistence.StudySessionRepo import StudySessionRepo
 
 from src.Features.VoxelStream_Module.services.FocusAnalyzer import FocusLevel
-from src.Features.VoxelStream_Module.services.FaceAuth import FaceAuthenticator
+from src.Features.VoxelStream_Module.services.FaceAuth import FaceAuthenticator, BackgroundVerifier
 
 from frontend.native.ui.history_window import HistoryPage
 from frontend.native.ui.tracking_settings import TrackingSettingsDialog
 from frontend.native.utils.config import (
-    ABSENT_FRAMES,
     ACCENT,
     APP_TITLE,
     BORDER,
@@ -44,15 +44,11 @@ from frontend.native.utils.config import (
     CAMERA_WIDTH,
     CARD,
     DANGER,
-    EAR_THRESHOLD,
     FRAME_INTERVAL_MS,
-    MAR_THRESHOLD,
     MUTED,
     NAVY,
     NAVY_DARK,
     NAVY_LIGHT,
-    PITCH_DOWN,
-    REQUIRED_FRAMES,
     SHOW_BBOX,
     SHOW_LANDMARKS,
     SHOW_OVERLAY,
@@ -61,8 +57,6 @@ from frontend.native.utils.config import (
     WARNING,
     WINDOW_HEIGHT,
     WINDOW_WIDTH,
-    YAW_LEFT,
-    YAW_RIGHT,
 )
 
 SIDEBAR_WIDTH = 200
@@ -75,13 +69,6 @@ class Dashboard(QMainWindow):
         self.capture = OCVCapture(CAMERA_INDEX, CAMERA_WIDTH, CAMERA_HEIGHT)
         self.extractor = Extractor()
         self.fsm = ExpressionFSM()
-        self.fsm.EYE_CLOSE_THRESHOLD = EAR_THRESHOLD
-        self.fsm.MOUTH_OPEN_THRESHOLD = MAR_THRESHOLD
-        self.fsm.LOOKING_LEFT_THRESHOLD = YAW_LEFT
-        self.fsm.LOOKING_RIGHT_THRESHOLD = YAW_RIGHT
-        self.fsm.LOOKING_DOWN_THRESHOLD = PITCH_DOWN
-        self.fsm.ABSENT_FRAMES = ABSENT_FRAMES
-        self.fsm.REQUIRED_FRAMES = REQUIRED_FRAMES
         self.show_landmarks = SHOW_LANDMARKS
         self.show_bbox = SHOW_BBOX
         self.show_overlay = SHOW_OVERLAY
@@ -94,6 +81,9 @@ class Dashboard(QMainWindow):
         self.detector_ctx = self.detector.__enter__()
 
         self._is_running = False
+        self._is_paused = False
+        self._paused_frame: np.ndarray | None = None
+        self._stop_requested = False
         self._last_tick = time.perf_counter()
         self._timer = QTimer(self)
         self._timer.setInterval(FRAME_INTERVAL_MS)
@@ -104,9 +94,11 @@ class Dashboard(QMainWindow):
         self._build_ui()
 
         self.face_auth = FaceAuthenticator()
+        self.background_verifier = BackgroundVerifier(self.face_auth)
         self.is_registered = False
         self.auth_warning = False
         self.auth_frame_count = 0
+        self._last_verified = True
 
     # ── UI ──────────────────────────────────────────────
 
@@ -245,21 +237,17 @@ class Dashboard(QMainWindow):
         controls = QHBoxLayout()
         controls.setSpacing(10)
         self.start_btn = self._button("Start", SUCCESS)
+        self.pause_btn = self._button("Pause", WARNING)
         self.stop_btn = self._button("Stop", DANGER)
         self.start_btn.clicked.connect(self._start_session)
+        self.pause_btn.clicked.connect(self._toggle_pause)
         self.stop_btn.clicked.connect(self._stop_session)
+        self.pause_btn.setEnabled(False)
         self.stop_btn.setEnabled(False)
         controls.addWidget(self.start_btn)
+        controls.addWidget(self.pause_btn)
         controls.addWidget(self.stop_btn)
-        self.settings_btn = QPushButton("\u2699", self)
-        self.settings_btn.setFixedWidth(44)
-        self.settings_btn.setToolTip("Tracking Settings")
-        self.settings_btn.setStyleSheet(
-            f"background-color: {CARD}; border: 1px solid {BORDER};"
-            f" border-radius: 12px; font-size: 18px; color: {MUTED};"
-        )
-        self.settings_btn.clicked.connect(self._open_settings_dialog)
-        controls.addWidget(self.settings_btn)
+
         right_panel.addLayout(controls)
 
         right_panel.addStretch(1)
@@ -309,18 +297,38 @@ class Dashboard(QMainWindow):
         if not self.capture.is_opened():
             QMessageBox.critical(self, "Camera Error", "Cannot open webcam.")
             return
+        self._stop_requested = False
+        self._is_paused = False
+        self._paused_frame = None
         self.session_manager.start()
+        self.background_verifier.start()
         self._is_running = True
         self.start_btn.setEnabled(False)
+        self.pause_btn.setEnabled(True)
+        self.pause_btn.setText("Pause")
+        self.pause_btn.setStyleSheet(
+            f"background-color: {WARNING}; border: none; border-radius: 12px;"
+            f" padding: 12px 16px; font-size: 14px; font-weight: 700; color: white;"
+        )
         self.stop_btn.setEnabled(True)
         self._timer.start()
 
     def _stop_session(self) -> None:
         if not self._is_running:
             return
+        self._stop_requested = True
         self._timer.stop()
         self._is_running = False
+        self._is_paused = False
+        self._paused_frame = None
+        self.background_verifier.stop()
         self.start_btn.setEnabled(True)
+        self.pause_btn.setEnabled(False)
+        self.pause_btn.setText("Pause")
+        self.pause_btn.setStyleSheet(
+            f"background-color: {WARNING}; border: none; border-radius: 12px;"
+            f" padding: 12px 16px; font-size: 14px; font-weight: 700; color: white;"
+        )
         self.stop_btn.setEnabled(False)
         session = self.session_manager.stop()
         if session:
@@ -332,6 +340,31 @@ class Dashboard(QMainWindow):
                 f"Distractions: {session.distraction_count}",
             )
         self._clear_cards()
+
+    def _toggle_pause(self) -> None:
+        if not self._is_paused:
+            self._is_paused = True
+            self._timer.stop()
+            self.pause_btn.setText("Resume")
+            self.pause_btn.setStyleSheet(
+                f"background-color: {SUCCESS}; border: none; border-radius: 12px;"
+                f" padding: 12px 16px; font-size: 14px; font-weight: 700; color: white;"
+            )
+            self._paused_frame = self.capture.read()
+            if self._paused_frame is not None:
+                cv2.putText(self._paused_frame, "PAUSED",
+                            (self._paused_frame.shape[1]//2 - 80, self._paused_frame.shape[0]//2),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 255), 3)
+                self._render_frame(self._paused_frame)
+        else:
+            self._is_paused = False
+            self._paused_frame = None
+            self.pause_btn.setText("Pause")
+            self.pause_btn.setStyleSheet(
+                f"background-color: {WARNING}; border: none; border-radius: 12px;"
+                f" padding: 12px 16px; font-size: 14px; font-weight: 700; color: white;"
+            )
+            self._timer.start()
 
         #RESET TRẠNG THÁI KHUÔN MẶT KHI DỪNG PHIÊN
         self.is_registered = False       
@@ -359,6 +392,11 @@ class Dashboard(QMainWindow):
     # ── Frame processing ─────────────────────────────────
 
     def _process_frame(self) -> None:
+        if self._stop_requested:
+            self._stop_session()
+            return
+        if self._is_paused:
+            return
         if not self._is_running:
             return
 
@@ -381,33 +419,40 @@ class Dashboard(QMainWindow):
             
             # A. Nếu CHƯA ĐĂNG KÝ -> Tiến hành tự động đăng ký
             if not getattr(self, 'is_registered', False):
-                cv2.putText(frame, "PHAT HIEN MAT - DANG TRICH XUAT...", (20, 50), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-                
                 if not hasattr(self, 'register_attempt_count'):
                     self.register_attempt_count = 0
                 self.register_attempt_count += 1
 
-                if self.register_attempt_count % 15 == 0:
+                cv2.putText(frame, f"DANG XAC THUC ({self.register_attempt_count})...", (20, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+
+                if self.register_attempt_count == 15:
                     success = self.face_auth.register_face(frame)
                     if success:
                         self.is_registered = True
                         print("✅ Tự động đăng ký khuôn mặt thành công!")
+                    else:
+                        cv2.putText(frame, "KHONG NHAN DIEN DUOC KHUON MAT, THU LAI...", (20, 100),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 
                 self._render_frame(frame)
                 return
 
-            # B. Nếu ĐÃ ĐĂNG KÝ -> Tiến hành kiểm tra danh tính định kỳ (3 giây/lần)
+            # B. Nếu ĐÃ ĐĂNG KÝ -> Gửi frame cho background verifier (không block)
             self.auth_frame_count = getattr(self, 'auth_frame_count', 0) + 1
             if self.auth_frame_count % 90 == 0:
-                is_correct_user = self.face_auth.verify_face(frame)
-                if not is_correct_user:
-                    self.auth_warning = True
+                self.background_verifier.submit_frame(frame)
+
+            current_verified = self.background_verifier.is_verified
+            if not current_verified:
+                self.auth_warning = True
+                if self._last_verified:
                     self.auth_fail_count = getattr(self, 'auth_fail_count', 0) + 1
                     print(f"⚠️ Phát hiện sai người lần {self.auth_fail_count}!")
-                else:
-                    self.auth_warning = False
-                    self.auth_fail_count = 0
+            else:
+                self.auth_warning = False
+                self.auth_fail_count = 0
+            self._last_verified = current_verified
 
             # Nếu vi phạm liên tiếp 3 lần (9 giây toàn người lạ) -> KHÓA 
             if getattr(self, 'auth_fail_count', 0) >= 3:
@@ -419,25 +464,22 @@ class Dashboard(QMainWindow):
                 cv2.putText(frame, f"WARNING: UNAUTHORIZED ({self.auth_fail_count}/3)", (20, 170), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
-            # PHÂN TÍCH TẬP TRUNG 
-            for idx, landmarks in enumerate(result.face_landmarks):
-                metrics = self.extractor.extract(landmarks)
-                if (
-                    result.facial_transformation_matrixes
-                    and idx < len(result.facial_transformation_matrixes)
-                ):
-                    tf_matrix = result.facial_transformation_matrixes[idx]
-                    pitch, yaw, roll = self.head_pose_estimator.estimate(tf_matrix)
-                    metrics.pitch = pitch
-                    metrics.yaw = yaw
-                    metrics.roll = roll
-                state = self.fsm.update(metrics)
-                frame = self.renderer.render(
-                    frame, landmarks, state, metrics,
-                    show_landmarks=self.show_landmarks,
-                    show_bbox=self.show_bbox,
-                    show_overlay=self.show_overlay,
-                )
+            # PHÂN TÍCH TẬP TRUNG (chỉ track 1 khuôn mặt đầu tiên)
+            landmarks = result.face_landmarks[0]
+            metrics = self.extractor.extract(landmarks)
+            if result.facial_transformation_matrixes:
+                tf_matrix = result.facial_transformation_matrixes[0]
+                pitch, yaw, roll = self.head_pose_estimator.estimate(tf_matrix)
+                metrics.pitch = pitch
+                metrics.yaw = yaw
+                metrics.roll = roll
+            state = self.fsm.update(metrics)
+            frame = self.renderer.render(
+                frame, landmarks, state, metrics,
+                show_landmarks=self.show_landmarks,
+                show_bbox=self.show_bbox,
+                show_overlay=self.show_overlay,
+            )
                 
         # TRƯỜNG HỢP 2: KHÔNG TÌM THẤY KHUÔN MẶT NÀO TRÊN CAMERA
         else:
@@ -563,11 +605,14 @@ class Dashboard(QMainWindow):
         self.is_registered = False  
         self.auth_fail_count = 0    
         self.auth_warning = False   
+        self.register_attempt_count = 0
+        self.auth_frame_count = 0
         self._is_running = True          
     # ── Lifecycle ────────────────────────────────────────
 
     def closeEvent(self, event: Any) -> None:
         self._timer.stop()
+        self.background_verifier.stop()
         if self._is_running:
             self.session_manager.stop()
         self.detector.__exit__(None, None, None)

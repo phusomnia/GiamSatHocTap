@@ -20,6 +20,8 @@ class VoxelStreamProc:
     def run_tracker(self, session_manager: SessionManager = None):
         with Detector() as detector:
             while self.capture.is_opened():
+                if self._stop_requested:
+                    break
 
                 frame = self.capture.read()
 
@@ -32,42 +34,22 @@ class VoxelStreamProc:
                 )
 
                 if result.face_landmarks:
+                    # Chỉ track 1 khuôn mặt đầu tiên
+                    landmarks = result.face_landmarks[0]
+                    metrics = self.extractor.extract(landmarks)
 
-                    for idx, landmarks in enumerate(result.face_landmarks):
+                    if result.facial_transformation_matrixes:
+                        tf_matrix = result.facial_transformation_matrixes[0]
+                        pitch, yaw, roll = self.head_pose_estimator.estimate(tf_matrix)
+                        metrics.pitch = pitch
+                        metrics.yaw = yaw
+                        metrics.roll = roll
 
-                        metrics = (
-                            self.extractor
-                            .extract(landmarks)
-                        )
+                    state = self.fsm.update(metrics)
+                    frame = self.renderer.render(frame, landmarks, state, metrics)
 
-                        if (
-                            result.facial_transformation_matrixes
-                            and idx < len(
-                                result.facial_transformation_matrixes
-                            )
-                        ):
-                            tf_matrix = (
-                                result.facial_transformation_matrixes[idx]
-                            )
-                            pitch, yaw, roll = (
-                                self.head_pose_estimator
-                                .estimate(tf_matrix)
-                            )
-                            metrics.pitch = pitch
-                            metrics.yaw = yaw
-                            metrics.roll = roll
-
-                        state = self.fsm.update(metrics)
-
-                        frame = self.renderer.render(
-                            frame,
-                            landmarks,
-                            state,
-                            metrics
-                        )
-
-                        if session_manager:
-                            session_manager.update(state)
+                    if session_manager:
+                        session_manager.update(state)
 
                 else:
                     state = self.fsm.update(None)
@@ -84,3 +66,5 @@ class VoxelStreamProc:
                     break
 
         self.capture.release()
+        if session_manager:
+            session_manager.stop()

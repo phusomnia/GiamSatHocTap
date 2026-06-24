@@ -1,9 +1,11 @@
+import threading
 from fastapi import FastAPI, APIRouter, status, Query
 from src.SharedKernel.base.Decorators import Controller
 from src.SharedKernel.base.Container import Container
 from src.SharedKernel.base.APIResponse import APIResponse
 from src.Features.VoxelStream_Module.handlers.VoxelStreamProc import VoxelStreamProc
 from src.SharedKernel.persistence.StudySessionRepo import StudySessionRepo
+from src.SharedKernel.persistence.SessionManager import SessionManager
 from src.Features.VoxelStream_Module.dto.VoxelStreamDTO import (
     SessionResponse,
     StatsSummary,
@@ -27,10 +29,25 @@ class VoxelStreamController:
     def init_routes(self) -> None:
         @self.router.post("/run", description="Start voxel stream processing")
         def run_voxel_stream():
-            self.voxel_stream_proc.run_tracker()
+            session_manager = SessionManager(StudySessionRepo())
+            session_manager.start()
+            thread = threading.Thread(
+                target=self.voxel_stream_proc.run_tracker,
+                args=(session_manager,),
+                daemon=True
+            )
+            thread.start()
             return APIResponse(
                 status_code=status.HTTP_200_OK,
-                message="Voxel stream processing completed",
+                message="Voxel stream processing started",
+            )
+
+        @self.router.post("/stop", description="Stop voxel stream processing")
+        def stop_voxel_stream():
+            self.voxel_stream_proc.stop()
+            return APIResponse(
+                status_code=status.HTTP_200_OK,
+                message="Voxel stream processing stopped",
             )
 
         @self.router.get(

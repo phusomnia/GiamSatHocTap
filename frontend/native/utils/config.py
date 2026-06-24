@@ -21,6 +21,7 @@ DB_PATH = str(BASE_DIR / _cfg.session.db_path)
 
 EAR_THRESHOLD = _cfg.tracking.ear_threshold
 MAR_THRESHOLD = _cfg.tracking.mar_threshold
+BLINK_MAX_FRAMES = _cfg.tracking.blink_max_frames
 YAW_LEFT = _cfg.tracking.yaw_left
 YAW_RIGHT = _cfg.tracking.yaw_right
 PITCH_DOWN = _cfg.tracking.pitch_down
