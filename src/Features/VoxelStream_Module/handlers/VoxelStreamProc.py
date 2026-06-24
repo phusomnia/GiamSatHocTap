@@ -8,9 +8,6 @@ from ..services.ExpressionFSM import ExpressionFSM
 from ..services.HeadPoseEstimator import HeadPoseEstimator
 from ....SharedKernel.persistence.SessionManager import SessionManager
 
-# [CODE MỚI] Import Service Xác thực khuôn mặt
-from ...services.FaceAuth import FaceAuthenticator
-
 @Component
 class VoxelStreamProc:
     def __init__(self):
@@ -19,15 +16,8 @@ class VoxelStreamProc:
         self.renderer = Renderer()
         self.fsm = ExpressionFSM()
         self.head_pose_estimator = HeadPoseEstimator()
-        
-        self.face_auth = FaceAuthenticator()
 
     def run_tracker(self, session_manager: SessionManager = None):
-        
-        is_registered = False
-        frame_count = 0
-        auth_warning = False
-
         with Detector() as detector:
             while self.capture.is_opened():
 
@@ -35,28 +25,6 @@ class VoxelStreamProc:
 
                 if frame is None:
                     break
-
-                #GIAI ĐOẠN ĐĂNG KÝ KHUÔN MẶT
-                if not is_registered:
-                    cv2.putText(frame, "Nhin thang camera, nhan 'S' de Dang ky", (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-                    
-                    cv2.imshow("Focus Analysis", frame)
-                    
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord("s") or key == ord("S"):
-                        print("Đang xử lý đăng ký khuôn mặt...")
-                        success = self.face_auth.register_face(frame)
-                        if success:
-                            print("✅ Đăng ký thành công! Bắt đầu giám sát.")
-                            is_registered = True
-                        else:
-                            print("❌ Không tìm thấy khuôn mặt hợp lệ, vui lòng thử lại!")
-                    elif key == ord("q") or key == ord("Q"):
-                        break
-                        
-                    continue # Bỏ qua toàn bộ phần tính toán bên dưới nếu chưa đăng ký xong
-
 
                 result = detector.detect(
                     frame,
@@ -106,24 +74,6 @@ class VoxelStreamProc:
                     frame = self.renderer.render_no_face(frame, state)
                     if session_manager:
                         session_manager.update(state)
-
-
-                #GIAI ĐOẠN KIỂM TRA ĐỊNH KỲ & CẢNH BÁO
-                frame_count += 1
-                # Kiểm tra lại khuôn mặt mỗi 90 frames (~3 giây)
-                if frame_count % 90 == 0:
-                    is_verified = self.face_auth.verify_face(frame)
-                    if not is_verified:
-                        auth_warning = True
-                        print("⚠️ CẢNH BÁO: Phát hiện người lạ hoặc người dùng rời khỏi vị trí!")
-                    else:
-                        auth_warning = False
-
-                # Vẽ chữ cảnh báo lên màn hình nếu đang cảnh báo
-                if auth_warning:
-                    cv2.putText(frame, "WARNING: UNAUTHORIZED USER!", (50, 80), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-
 
                 cv2.imshow(
                     "Focus Analysis",
