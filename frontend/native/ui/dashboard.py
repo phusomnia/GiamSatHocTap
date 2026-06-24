@@ -333,6 +333,18 @@ class Dashboard(QMainWindow):
             )
         self._clear_cards()
 
+        #RESET TRẠNG THÁI KHUÔN MẶT KHI DỪNG PHIÊN
+        self.is_registered = False       
+        self.auth_fail_count = 0         
+        self.auth_warning = False        
+        
+        # Xóa sạch dữ liệu khuôn mặt cũ trong FaceAuthenticator
+        if hasattr(self, 'face_auth'):
+            self.face_auth.registered_embedding = None
+            
+        if hasattr(self, 'register_attempt_count'):
+            self.register_attempt_count = 0   
+
     def _clear_cards(self) -> None:
         for card, title in (
             (self.score_card, "Focus Percentage"), (self.focus_card, "Focus State"),
@@ -358,44 +370,56 @@ class Dashboard(QMainWindow):
         fps = 1.0 / max(now - self._last_tick, 0.001)
         self._last_tick = now
 
-        if not getattr(self, 'is_registered', False):
-            # In thông báo đang quét lên màn hình
-            cv2.putText(frame, "DANG QUET KHUON MAT GOC...", (20, 50), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-            cv2.putText(frame, "Vui long nhin thang vao camera", (20, 90), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            
-            # Khởi tạo bộ đếm nếu chưa có (để tránh lag)
-            if not hasattr(self, 'register_attempt_count'):
-                self.register_attempt_count = 0
-            self.register_attempt_count += 1
-
-            # Cứ mỗi 15 khung hình (~0.5 giây) mới gọi AI quét 1 lần để giao diện không bị giật lag
-            if self.register_attempt_count % 15 == 0:
-                print("Đang thử trích xuất khuôn mặt...")
-                success = self.face_auth.register_face(frame)
-                if success:
-                    self.is_registered = True
-                    print("✅ Tự động đăng ký khuôn mặt thành công!")
-            
-            # Vẽ hình ảnh ra UI và chặn lại, chưa cho FSM chạy
-            self._render_frame(frame)
-            return
-        self.auth_frame_count += 1
-        if self.auth_frame_count % 90 == 0: # ~3 giây check 1 lần
-            is_correct_user = self.face_auth.verify_face(frame)
-            self.auth_warning = not is_correct_user
-
-        if getattr(self, 'auth_warning', False):
-            cv2.putText(frame, "WARNING: UNAUTHORIZED USER!", (50, 50), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
-
+        #Chạy bộ detector gốc của đồ án trước để biết chắc chắn có mặt hay không
         result = self.detector_ctx.detect(frame, self.capture.timestamp())
 
         state = FaceState.NORMAL
         metrics = None
 
+        # TRƯỜNG HỢP 1: CAMERA NHÌN THẤY CÓ KHUÔN MẶT
         if result.face_landmarks:
+            
+            # A. Nếu CHƯA ĐĂNG KÝ -> Tiến hành tự động đăng ký
+            if not getattr(self, 'is_registered', False):
+                cv2.putText(frame, "PHAT HIEN MAT - DANG TRICH XUAT...", (20, 50), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                
+                if not hasattr(self, 'register_attempt_count'):
+                    self.register_attempt_count = 0
+                self.register_attempt_count += 1
+
+                if self.register_attempt_count % 15 == 0:
+                    success = self.face_auth.register_face(frame)
+                    if success:
+                        self.is_registered = True
+                        print("✅ Tự động đăng ký khuôn mặt thành công!")
+                
+                self._render_frame(frame)
+                return
+
+            # B. Nếu ĐÃ ĐĂNG KÝ -> Tiến hành kiểm tra danh tính định kỳ (3 giây/lần)
+            self.auth_frame_count = getattr(self, 'auth_frame_count', 0) + 1
+            if self.auth_frame_count % 90 == 0:
+                is_correct_user = self.face_auth.verify_face(frame)
+                if not is_correct_user:
+                    self.auth_warning = True
+                    self.auth_fail_count = getattr(self, 'auth_fail_count', 0) + 1
+                    print(f"⚠️ Phát hiện sai người lần {self.auth_fail_count}!")
+                else:
+                    self.auth_warning = False
+                    self.auth_fail_count = 0
+
+            # Nếu vi phạm liên tiếp 3 lần (9 giây toàn người lạ) -> KHÓA 
+            if getattr(self, 'auth_fail_count', 0) >= 3:
+                self.handle_auth_violation()
+                return
+
+            # Hiển thị cảnh báo nếu đang có người lạ ngồi trước máy
+            if getattr(self, 'auth_warning', False):
+                cv2.putText(frame, f"WARNING: UNAUTHORIZED ({self.auth_fail_count}/3)", (20, 170), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
+            # PHÂN TÍCH TẬP TRUNG 
             for idx, landmarks in enumerate(result.face_landmarks):
                 metrics = self.extractor.extract(landmarks)
                 if (
@@ -414,7 +438,34 @@ class Dashboard(QMainWindow):
                     show_bbox=self.show_bbox,
                     show_overlay=self.show_overlay,
                 )
+                
+        # TRƯỜNG HỢP 2: KHÔNG TÌM THẤY KHUÔN MẶT NÀO TRÊN CAMERA
         else:
+            # Nếu chưa đăng ký mà camera trống trơn -> Bắt buộc người dùng đưa mặt vào
+            if not getattr(self, 'is_registered', False):
+                cv2.putText(frame, "KHONG TIM THAY KHUON MAT", (20, 150), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+                cv2.putText(frame, "Vui long dua mat vao camera de bat dau...", (20, 190), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+                self._render_frame(frame)
+                return
+
+            # Nếu đã đăng ký nhưng rời khỏi  -> Cũng tính cảnh cáo
+            self.auth_frame_count = getattr(self, 'auth_frame_count', 0) + 1
+            if self.auth_frame_count % 90 == 0:
+                self.auth_warning = True
+                self.auth_fail_count = getattr(self, 'auth_fail_count', 0) + 1
+                print(f"⚠️ Không tìm thấy người học lần {self.auth_fail_count}!")
+
+            if getattr(self, 'auth_fail_count', 0) >= 3:
+                self.handle_auth_violation()
+                return
+
+            if getattr(self, 'auth_warning', False):
+                cv2.putText(frame, f"WARNING: NO FACE DETECTED ({self.auth_fail_count}/3)", (20, 150), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
+            # --- LOGIC GỐC KHI KHÔNG CÓ MẶT ---
             state = self.fsm.update(None)
             frame = self.renderer.render_no_face(
                 frame, state,
@@ -491,7 +542,28 @@ class Dashboard(QMainWindow):
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation,
         )
-        self.video_label.setPixmap(pix)    
+        self.video_label.setPixmap(pix)   
+
+    def handle_auth_violation(self):
+        """Hàm xử lý khi phát hiện sai người / vắng mặt quá lâu"""
+        
+        # 1. Dừng camera
+        self._is_running = False 
+        
+        # 2. Bật Popup cảnh báo 
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Critical)
+        msg.setWindowTitle("CẢNH BÁO")
+        msg.setText("Phát hiện người lạ hoặc bạn đã rời khỏi vị trí quá lâu!")
+        msg.setInformativeText("Hệ thống đã bị khóa. Vui lòng nhấn OK và nhìn thẳng vào camera để xác thực lại danh tính!")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+        
+        # 3. ÉP BUỘC PHẢI QUÉT LẠI KHUÔN MẶT 
+        self.is_registered = False  
+        self.auth_fail_count = 0    
+        self.auth_warning = False   
+        self._is_running = True          
     # ── Lifecycle ────────────────────────────────────────
 
     def closeEvent(self, event: Any) -> None:

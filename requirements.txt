@@ -3,3 +3,4 @@ mediapipe
 numpy
 PyQt5
 matplotlib
+deepface
